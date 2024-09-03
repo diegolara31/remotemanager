@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Manager</title>
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    async function loadPort() {
+      // Get port value and set it in the input field
+      const port = await ipcRenderer.invoke('get-port');
+      document.getElementById('port').value = port;
+
+      // Show initial message while fetching IP address
+      const ipAddressElement = document.getElementById('ip-address');
+      let dots = '';
+      ipAddressElement.textContent = 'Getting IP address';
+
+      // Update the message with increasing dots every second
+      const intervalId = setInterval(() => {
+        dots = dots.length < 5 ? dots + '.' : '';
+        ipAddressElement.textContent = `Getting IP address${dots}`;
+      }, 1000);
+
+      // Fetch IP address after a delay (e.g., 3 seconds)
+      setTimeout(async () => {
+        clearInterval(intervalId); // Stop updating dots
+        try {
+          const ip = await ipcRenderer.invoke('get-ip-address');
+          ipAddressElement.textContent = `System IP: ${ip}`;
+        } catch (error) {
+          ipAddressElement.textContent = `Failed to get IP address: ${error.message}`;
+        }
+      }, 5000); // 3000 milliseconds = 3 seconds
+    }
+
+    async function savePort() {
+      const port = parseInt(document.getElementById('port').value, 10);
+      try {
+        await ipcRenderer.invoke('set-port', port);
+        alert('Port saved and server restarted');
+      } catch (error) {
+        alert('Failed to save port: ' + error.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPort);
+  </script>
+</head>
+<body>
+  <div>
+    <label for="port">Port:</label>
+    <input type="number" id="port" min="1" max="65535">
+    <button onclick="savePort()">Save Port</button>
+    <br>
+    <span id="ip-address">Getting IP address</span>
+  </div>
+</body>
+</html>

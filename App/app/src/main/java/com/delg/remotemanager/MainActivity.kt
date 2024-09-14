@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -329,7 +330,9 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
 
     fun setIpPort(value: String) {
         _ipPort = value
-        saveIp(value)
+        if (value != "demo") {
+            saveIp(value)
+        }
     }
 
     fun getUsedIps(): List<String> {
@@ -344,6 +347,11 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
 
     suspend fun testConnection(ipPort: String): String {
         return withContext(Dispatchers.IO) {
+            if (ipPort == "demo") {
+                delay(1000) // Simulate network delay
+                return@withContext "Connection successful"
+            }
+
             var connection: HttpURLConnection? = null
             try {
                 val url = URL("http://$ipPort/api/health")
@@ -368,6 +376,11 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
 
     suspend fun sendCommand(command: String): String {
         return withContext(Dispatchers.IO) {
+            if (_ipPort == "demo") {
+                delay(1000) // Simulate network delay
+                return@withContext "Command '$command' sent successfully (Demo Mode)"
+            }
+
             var connection: HttpURLConnection? = null
             try {
                 val url = URL("http://$_ipPort/api/$command")

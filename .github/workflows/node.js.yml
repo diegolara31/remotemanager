@@ -27,4 +27,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    - run: ls -la
+    - run: npm i
     - run: npm run make

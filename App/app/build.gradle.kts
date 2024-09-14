@@ -11,8 +11,8 @@ android {
         applicationId = "com.delg.remotemanager"
         minSdk = 27
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.6"
+        versionCode = 11
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

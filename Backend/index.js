@@ -25,6 +25,10 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png')
   });
 
+app.setLoginItemSettings({
+    openAtLogin: true    
+})
+
   win.loadURL(`file://${__dirname}/index.html`);
   win.on('close', (e) => {
     if (tray) {

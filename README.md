@@ -5,8 +5,8 @@ I started developing the backend using C#, but I'm considering redoing it due to
 
 
 
-WIP
- - Rebuild using Java(backend) + Kotlin(Android)
+Plans
+ - Rebuild using Electron(backend) + Kotlin(Android) / done
 
 
 

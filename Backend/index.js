@@ -4,6 +4,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
 const os = require("os");
+const dns = require('dns').promises;
 
 const PORT_FILE_PATH = path.join(__dirname, 'port.txt');
 const DEFAULT_PORT = 4433;
@@ -16,7 +17,7 @@ Menu.setApplicationMenu(null);
 function createWindow() {
   const win = new BrowserWindow({
     width: 300,
-    height: 150,
+    height: 210,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -59,8 +60,8 @@ function createTray() {
     {
       label: 'Exit',
       click: () => {
-        stopServer();
-        app.quit();
+        stopServer(); // Stop the server first
+        app.exit(); // Force the app to quit immediately
       },
     },
   ]);
@@ -68,6 +69,8 @@ function createTray() {
   tray.setToolTip('Remote Manager');
   tray.setContextMenu(contextMenu);
 }
+
+
 
 function startServer() {
   const app = express();
@@ -143,19 +146,38 @@ function savePortToFile() {
   }
 }
 
-function getLocalIP() {
+async function getLocalIP() {
   const interfaces = os.networkInterfaces();
   let localIP = 'Not available';
 
   for (const name of Object.keys(interfaces)) {
+    
     for (const net of interfaces[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
+      // Filter for IPv4, non-internal, and non-virtual interfaces
+      if (
+        net.family === 'IPv4' &&
+        !net.internal &&
+        !/VirtualBox/i.test(name) &&   // Exclude VirtualBox interfaces
+        !/vmware/i.test(name) &&       // Exclude VMware interfaces
+        !/vbox/i.test(name) &&         // Exclude other VirtualBox-related interfaces
+        !/virtual/i.test(name)         // General check to exclude virtual adapters
+      ) {
         localIP = net.address;
-        break;
+        return localIP; // Return immediately after finding the first valid IP
       }
     }
   }
-  return localIP;
+
+  try {
+    // Try to resolve google.com with a 1.5-second timeout
+    await Promise.race([
+      dns.resolve('google.com'),
+      new Promise((_, reject) => setTimeout(() => reject('No Internet'), 1500))
+    ]);
+    return localIP; // Return the local IP if Google resolves
+  } catch (error) {
+    return 'No Internet'; // Return "No Internet" if it fails
+  }
 }
 
 function setupIPC() {
@@ -171,7 +193,11 @@ function setupIPC() {
       throw new Error('Invalid port number');
     }
   });
-  ipcMain.handle('get-ip-address', () => getLocalIP());
+  ipcMain.handle('get-ip-address', async () => {
+    const ip = await getLocalIP();
+    return ip;
+  });
+  
 }
 
 app.whenReady().then(() => {

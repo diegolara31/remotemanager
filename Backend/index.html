@@ -19,20 +19,21 @@
 
       // Update the message with increasing dots every second
       const intervalId = setInterval(() => {
-        dots = dots.length < 5 ? dots + '.' : '';
+        dots = dots.length < 3 ? dots + '.' : '';
         ipAddressElement.textContent = `Getting IP address${dots}`;
       }, 1000);
 
-      // Fetch IP address after a delay (e.g., 3 seconds)
+      // Fetch IP address after a delay
       setTimeout(async () => {
-        clearInterval(intervalId); // Stop updating dots
+        clearInterval(intervalId);
         try {
           const ip = await ipcRenderer.invoke('get-ip-address');
-          ipAddressElement.textContent = `System IP: ${ip}`;
+          ipAddressElement.innerHTML = `System IP: <b>${ip}</b> <br><br>Instructions:<br> 1. Download the mobile app <br> 2. Open it and click on "New IP" <br> 3. Introduce the IP shown above`;
+
         } catch (error) {
           ipAddressElement.textContent = `Failed to get IP address: ${error.message}`;
         }
-      }, 5000); // 3000 milliseconds = 3 seconds
+      }, 5000);
     }
 
     async function savePort() {
@@ -53,6 +54,7 @@
     <label for="port">Port:</label>
     <input type="number" id="port" min="1" max="65535">
     <button onclick="savePort()">Save</button>
+    <br>
     <br>
     <span id="ip-address">Getting IP address</span>
   </div>

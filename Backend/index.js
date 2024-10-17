@@ -4,37 +4,60 @@ const path = require('path');
 const { exec } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
 const os = require("os");
-const dns = require('dns').promises;
 
-const PORT_FILE_PATH = path.join(__dirname, 'port.txt');
-const DEFAULT_PORT = 4433;
+const CONFIG_FILE_PATH = path.join(__dirname, 'config.json');
+const DEFAULT_CONFIG = {
+  port: 4433,
+  showOnBoot: true,
+};
 
-let port = DEFAULT_PORT;
+let config = { ...DEFAULT_CONFIG };
 let server;
 let tray;
+
+// Load config.json or create it with default settings if not found
+function loadConfig() {
+  if (fs.existsSync(CONFIG_FILE_PATH)) {
+    try {
+      config = fs.readJsonSync(CONFIG_FILE_PATH);
+    } catch (error) {
+      console.error(`Failed to load config: ${error.message}`);
+    }
+  } else {
+    saveConfig();
+  }
+}
+
+// Save config.json with the current settings
+function saveConfig() {
+  try {
+    fs.writeJsonSync(CONFIG_FILE_PATH, config);
+  } catch (error) {
+    console.error(`Failed to save config: ${error.message}`);
+  }
+}
+
 Menu.setApplicationMenu(null);
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 300,
-    height: 210,
+    width: 310,
+    height: 260,
+    show: config.showOnBoot, // Use the showOnBoot setting to decide if it should be shown
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      autoHideMenuBar: true
+      autoHideMenuBar: true,
     },
-    icon: path.join(__dirname, 'icon.png')
+    icon: path.join(__dirname, 'icon.png'),
   });
 
-app.setLoginItemSettings({
-    openAtLogin: true    
-})
-
   win.loadURL(`file://${__dirname}/index.html`);
+
   win.on('close', (e) => {
     if (tray) {
       e.preventDefault();
-      win.hide();
+      win.hide(); // Hide instead of closing
     }
   });
 
@@ -45,6 +68,8 @@ app.setLoginItemSettings({
   globalShortcut.register('Ctrl+Q', () => {
     app.quit();
   });
+
+  return win;
 }
 
 function createTray() {
@@ -58,10 +83,19 @@ function createTray() {
       },
     },
     {
+      label: 'Show on Boot',
+      type: 'checkbox',
+      checked: config.showOnBoot, // Reflect the current setting
+      click: () => {
+        config.showOnBoot = !config.showOnBoot; // Toggle the value
+        saveConfig(); // Save the updated config to file
+      },
+    },
+    {
       label: 'Exit',
       click: () => {
         stopServer(); // Stop the server first
-        app.exit(); // Force the app to quit immediately
+        app.exit(); // Quit the app
       },
     },
   ]);
@@ -69,8 +103,6 @@ function createTray() {
   tray.setToolTip('Remote Manager');
   tray.setContextMenu(contextMenu);
 }
-
-
 
 function startServer() {
   const app = express();
@@ -105,8 +137,8 @@ function startServer() {
     res.status(405).send('Unsupported HTTP method');
   });
 
-  server = app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+  server = app.listen(config.port, () => {
+    console.log(`Server running on port ${config.port}`);
   });
 }
 
@@ -118,33 +150,24 @@ function stopServer() {
   }
 }
 
-function loadPortFromFile() {
-  if (fs.existsSync(PORT_FILE_PATH)) {
-    try {
-      const portText = fs.readFileSync(PORT_FILE_PATH, 'utf8');
-      const parsedPort = parseInt(portText, 10);
-      if (parsedPort > 0 && parsedPort <= 65535) {
-        port = parsedPort;
-      } else {
-        port = DEFAULT_PORT;
-      }
-    } catch (error) {
-      console.error(`Failed to load port from file: ${error.message}`);
-      port = DEFAULT_PORT;
-    }
+// IPC Handlers
+ipcMain.handle('get-port', () => config.port);
+ipcMain.handle('set-port', (event, newPort) => {
+  if (Number.isInteger(newPort) && newPort > 0 && newPort <= 65535) {
+    config.port = newPort;
+    saveConfig(); // Save the updated port to config.json
+    stopServer(); // Restart the server with the new port
+    startServer();
+    return config.port;
   } else {
-    port = DEFAULT_PORT;
+    throw new Error('Invalid port number');
   }
-}
+});
 
-function savePortToFile() {
-  try {
-    fs.ensureDirSync(__dirname);
-    fs.writeFileSync(PORT_FILE_PATH, port.toString());
-  } catch (error) {
-    console.error(`Failed to save port to file: ${error.message}`);
-  }
-}
+ipcMain.handle('get-ip-address', async () => {
+  const ip = await getLocalIP();
+  return ip;
+});
 
 async function getLocalIP() {
   const interfaces = os.networkInterfaces();
@@ -180,31 +203,10 @@ async function getLocalIP() {
   }
 }
 
-function setupIPC() {
-
-  ipcMain.handle('get-port', () => port);
-  ipcMain.handle('set-port', (event, newPort) => {
-    if (Number.isInteger(newPort) && newPort > 0 && newPort <= 65535) {
-      port = newPort;
-      savePortToFile();
-      stopServer();
-      startServer();
-    } else {
-      throw new Error('Invalid port number');
-    }
-  });
-  ipcMain.handle('get-ip-address', async () => {
-    const ip = await getLocalIP();
-    return ip;
-  });
-  
-}
-
 app.whenReady().then(() => {
-  loadPortFromFile();
+  loadConfig(); // Load the config at startup
   createTray();
-  createWindow();
-  setupIPC();
+  const win = createWindow();
   startServer();
 
   app.on('window-all-closed', () => {

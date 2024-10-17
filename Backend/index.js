@@ -4,6 +4,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
 const os = require("os");
+const dns = require('dns').promises
 
 const CONFIG_FILE_PATH = path.join(__dirname, 'config.json');
 const DEFAULT_CONFIG = {
@@ -41,7 +42,7 @@ Menu.setApplicationMenu(null);
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 310,
+    width: 330,
     height: 260,
     show: config.showOnBoot, // Use the showOnBoot setting to decide if it should be shown
     webPreferences: {
@@ -185,21 +186,23 @@ async function getLocalIP() {
         !/vbox/i.test(name) &&         // Exclude other VirtualBox-related interfaces
         !/virtual/i.test(name)         // General check to exclude virtual adapters
       ) {
-        localIP = net.address;
-        return localIP; // Return immediately after finding the first valid IP
+        try {
+          // Try to resolve google.com with a 1.5-second timeout
+          await Promise.race([
+            dns.resolve('google.com'),
+            new Promise((_, reject) => setTimeout(() => reject('No Internet'), 1500))
+          ]);
+          localIP = net.address;
+          return localIP; // Return the local IP if Google resolves
+        } catch (error) {
+          setTimeout(() => {
+            stopServer();
+            app.exit()
+          }, 5000);
+          return false; // Return "No Internet" if it fails
+        }
       }
     }
-  }
-
-  try {
-    // Try to resolve google.com with a 1.5-second timeout
-    await Promise.race([
-      dns.resolve('google.com'),
-      new Promise((_, reject) => setTimeout(() => reject('No Internet'), 1500))
-    ]);
-    return localIP; // Return the local IP if Google resolves
-  } catch (error) {
-    return 'No Internet'; // Return "No Internet" if it fails
   }
 }
 

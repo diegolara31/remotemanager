@@ -27,8 +27,13 @@
       setTimeout(async () => {
         clearInterval(intervalId);
         try {
-          const ip = await ipcRenderer.invoke('get-ip-address');
-          ipAddressElement.innerHTML = `System IP: <b>${ip}</b> <br><br>Instructions:<br> 1. Download the mobile app <br> 2. Open it and click on "New IP" <br> 3. Introduce the IP shown above<br><br>To hide the app on startup, right-click the tray icon and uncheck 'Show on boot'.`;
+        const ip = await ipcRenderer.invoke('get-ip-address');
+  
+          if (ip === false) {
+            ipAddressElement.innerHTML = `No internet connection. Closing in 5 seconds.`;
+          } else {
+            ipAddressElement.innerHTML = `System IP: <b>${ip}</b> <br><br>Instructions:<br> 1. Download the mobile app <br> 2. Open it and click on "New IP" <br> 3. Introduce the IP shown above<br><br>To hide the app on startup, right-click the tray icon and uncheck 'Show on boot'.`;
+          }
 
         } catch (error) {
           ipAddressElement.textContent = `Failed to get IP address: ${error.message}`;

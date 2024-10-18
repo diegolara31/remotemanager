@@ -3,21 +3,42 @@ const fs = require('fs-extra');
 const path = require('path');
 const { exec } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
-const os = require("os");
-const dns = require('dns').promises
+const os = require('os');
+const dns = require('dns').promises;
 
-const CONFIG_FILE_PATH = path.join(__dirname, 'config.json');
+// Determine the ProgramData directory
+const programDataPath = process.env.PROGRAMDATA;
+
+// Define the path for config.json inside ProgramData
+const CONFIG_FILE_PATH = path.join(programDataPath, 'Remote Manager', 'config.json'); // Change 'MyApp' to your app's folder name
+
+// Default configuration
 const DEFAULT_CONFIG = {
   port: 4433,
   showOnBoot: true,
+  autoStart: false,
 };
 
 let config = { ...DEFAULT_CONFIG };
 let server;
 let tray;
 
+// Ensure the directory exists and has proper permissions
+function ensureConfigDirectory() {
+  try {
+    const configDir = path.dirname(CONFIG_FILE_PATH);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+  } catch (error) {
+    console.error(`Failed to create config directory: ${error.message}`);
+  }
+}
+
 // Load config.json or create it with default settings if not found
 function loadConfig() {
+  ensureConfigDirectory();
+
   if (fs.existsSync(CONFIG_FILE_PATH)) {
     try {
       config = fs.readJsonSync(CONFIG_FILE_PATH);
@@ -27,6 +48,12 @@ function loadConfig() {
   } else {
     saveConfig();
   }
+
+  // Set the auto-start setting based on user preference
+  app.setLoginItemSettings({
+    openAtLogin: config.autoStart,
+    path: app.getPath('exe'), // Get the current executable path
+  });
 }
 
 // Save config.json with the current settings
@@ -43,8 +70,8 @@ Menu.setApplicationMenu(null);
 function createWindow() {
   const win = new BrowserWindow({
     width: 330,
-    height: 260,
-    show: config.showOnBoot, // Use the showOnBoot setting to decide if it should be shown
+    height: 310,
+    show: config.showOnBoot,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -86,10 +113,23 @@ function createTray() {
     {
       label: 'Show on Boot',
       type: 'checkbox',
-      checked: config.showOnBoot, // Reflect the current setting
+      checked: config.showOnBoot,
       click: () => {
         config.showOnBoot = !config.showOnBoot; // Toggle the value
         saveConfig(); // Save the updated config to file
+      },
+    },
+    {
+      label: 'Auto Start',
+      type: 'checkbox',
+      checked: config.autoStart,
+      click: () => {
+        config.autoStart = !config.autoStart; // Toggle the value
+        saveConfig(); // Save the updated config
+        app.setLoginItemSettings({
+          openAtLogin: config.autoStart,
+          path: app.getPath('exe'),
+        });
       },
     },
     {
@@ -175,19 +215,17 @@ async function getLocalIP() {
   let localIP = 'Not available';
 
   for (const name of Object.keys(interfaces)) {
-    
     for (const net of interfaces[name]) {
       // Filter for IPv4, non-internal, and non-virtual interfaces
       if (
         net.family === 'IPv4' &&
         !net.internal &&
-        !/VirtualBox/i.test(name) &&   // Exclude VirtualBox interfaces
-        !/vmware/i.test(name) &&       // Exclude VMware interfaces
-        !/vbox/i.test(name) &&         // Exclude other VirtualBox-related interfaces
-        !/virtual/i.test(name)         // General check to exclude virtual adapters
+        !/VirtualBox/i.test(name) &&
+        !/vmware/i.test(name) &&
+        !/vbox/i.test(name) &&
+        !/virtual/i.test(name)
       ) {
         try {
-          // Try to resolve google.com with a 1.5-second timeout
           await Promise.race([
             dns.resolve('google.com'),
             new Promise((_, reject) => setTimeout(() => reject('No Internet'), 1500))
@@ -197,7 +235,7 @@ async function getLocalIP() {
         } catch (error) {
           setTimeout(() => {
             stopServer();
-            app.exit()
+            app.exit();
           }, 5000);
           return false; // Return "No Internet" if it fails
         }

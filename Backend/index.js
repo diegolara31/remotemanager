@@ -69,8 +69,8 @@ Menu.setApplicationMenu(null);
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 330,
-    height: 310,
+    width: 350,
+    height: 410,
     show: config.showOnBoot,
     webPreferences: {
       nodeIntegration: true,

@@ -4,41 +4,241 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Remote Manager</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --bg-color: #f0f2f5;
+      --text-color: #333;
+      --card-bg: #ffffff;
+      --input-bg: #ffffff;
+      --input-border: #ddd;
+      --button-bg: #3498db;
+      --button-text: #ffffff;
+      --switch-bg: #3498db;
+    }
+
+    .dark-mode {
+      --bg-color: #1a1a1a;
+      --text-color: #f0f2f5;
+      --card-bg: #2c2c2c;
+      --input-bg: #3a3a3a;
+      --input-border: #555;
+      --button-bg: #2980b9;
+      --button-text: #ffffff;
+      --switch-bg: #f39c12;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      width: 330px;
+      height: 330px;
+      overflow: hidden;
+      box-sizing: border-box;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    .container {
+      width: 100%;
+      height: 112%;
+      padding: 15px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      height: 100%;
+      box-sizing: border-box;
+      transition: background-color 0.3s;
+      display: flex;
+      flex-direction: column;
+      position: relative; /* Ensure child elements can be positioned relative to this */
+    }
+
+    h1 {
+      margin: 0 0 5px;
+      font-size: 22px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .version {
+      font-size: 12px;
+      font-weight: 400;
+      text-align: center;
+      color: var(--text-color);
+      margin-bottom: 15px;
+    }
+
+    .input-group {
+      display: flex;
+      margin-bottom: 15px;
+    }
+
+    input[type="number"] {
+      flex-grow: 1;
+      padding: 8px;
+      border: 1px solid var(--input-border);
+      border-radius: 6px 0 0 6px;
+      font-size: 14px;
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+    }
+
+    button {
+      padding: 8px 15px;
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #ip-address {
+      font-size: 14px;
+      line-height: 1.4;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ip {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-align: center;
+      padding: 8px;
+      background-color: rgba(52, 152, 219, 0.1);
+      border-radius: 6px;
+    }
+
+    .instructions {
+      margin-bottom: 10px;
+    }
+
+    .instruction-step {
+      margin-bottom: 8px;
+      padding-left: 15px;
+      position: relative;
+    }
+
+    .instruction-step:before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--button-bg);
+    }
+
+    .additional-info {
+      font-size: 11px;
+      margin-top: auto;
+      border-top: 1px solid var(--input-border);
+      padding-top: 10px;
+      white-space: nowrap; /* Prevent line breaks */
+    }
+
+    .loading:after {
+      content: '...';
+      animation: dots 1.5s steps(5, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
+      40% { color: var(--text-color); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
+      60% { text-shadow: .25em 0 0 var(--text-color), .5em 0 0 rgba(0,0,0,0); }
+      80%, 100% { text-shadow: .25em 0 0 var(--text-color), .5em 0 0 var(--text-color); }
+    }
+
+    .theme-switch {
+      cursor: pointer;
+      position: absolute; /* Move to top left corner */
+      top: 15px; /* Adjust as needed */
+      left: 15px; /* Adjust as needed */
+      display: flex;
+      align-items: center;
+      font-size: 24px; /* Icon size */
+      pointer-events: auto; /* Allow pointer events */
+    }
+
+    .theme-icon {
+      width: 24px; /* Icon size */
+      height: 24px; /* Limit clickable area */
+      display: inline-block; /* Ensures only the icon is clickable */
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Remote Manager</h1>
+      <div class="version">Version 1.7</div>
+      <div class="input-group">
+        <input type="number" id="port" min="1" max="65535" placeholder="Port">
+        <button onclick="savePort()">Save</button>
+      </div>
+      <div id="ip-address" class="loading">Getting IP address</div>
+      <div class="bottom-container">
+        <div class="additional-info">
+          <div>Hide on startup: Tray icon > Uncheck 'Show on boot'</div>
+          <div>Disable autostart: Uncheck "Auto Start"</div>
+        </div>        
+        <div class="theme-switch" id="theme-toggle">
+          <div class="theme-icon" id="moon-icon">
+            <i class="fas fa-moon"></i>
+          </div>
+          <div class="theme-icon" id="sun-icon" style="display: none;">
+            <i class="fas fa-sun"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const { ipcRenderer } = require('electron');
 
     async function loadPort() {
-      // Get port value and set it in the input field
       const port = await ipcRenderer.invoke('get-port');
       document.getElementById('port').value = port;
 
-      // Show initial message while fetching IP address
       const ipAddressElement = document.getElementById('ip-address');
-      let dots = '';
-      ipAddressElement.textContent = 'Getting IP address';
+      ipAddressElement.classList.add('loading');
 
-      // Update the message with increasing dots every second
-      const intervalId = setInterval(() => {
-        dots = dots.length < 3 ? dots + '.' : '';
-        ipAddressElement.textContent = `Getting IP address${dots}`;
-      }, 1000);
-
-      // Fetch IP address after a delay
       setTimeout(async () => {
-        clearInterval(intervalId);
         try {
-        const ip = await ipcRenderer.invoke('get-ip-address');
+          const ip = await ipcRenderer.invoke('get-ip-address');
   
           if (ip === false) {
-            ipAddressElement.innerHTML = `No internet connection. Closing in 5 seconds.`;
+            ipAddressElement.innerHTML = `No internet connection. Closing in 5s.`;
           } else {
-            ipAddressElement.innerHTML = `System IP: <b>${ip}</b> <br><br>Instructions:<br> 1. Download the mobile app <br> 2. Open it and click on "New IP" <br> 3. Introduce the IP shown above<br><br>To hide the app on startup, right-click the tray icon and uncheck 'Show on boot'.<br><br>Dont want the app to start on boot? just uncheck "Auto Start"`;
+            ipAddressElement.innerHTML = `
+              <div class="ip">IP: ${ip}</div>
+              <div class="instructions">
+                <div class="instruction-step">Download mobile app</div>
+                <div class="instruction-step">Open & click "New IP"</div>
+                <div class="instruction-step">Enter IP shown above</div>
+              </div>
+            `;
           }
-
         } catch (error) {
-          ipAddressElement.textContent = `Failed to get IP address: ${error.message}`;
+          ipAddressElement.textContent = `Failed to get IP: ${error.message}`;
         }
-      }, 5000);
+        ipAddressElement.classList.remove('loading');
+      }, 3000);
     }
 
     async function savePort() {
@@ -51,17 +251,19 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadPort);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPort();
+      
+      const themeToggle = document.getElementById('theme-toggle');
+      const sunIcon = document.getElementById('sun-icon');
+      const moonIcon = document.getElementById('moon-icon');
+
+      themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        sunIcon.style.display = sunIcon.style.display === 'none' ? 'block' : 'none';
+        moonIcon.style.display = moonIcon.style.display === 'none' ? 'block' : 'none';
+      });
+    });
   </script>
-</head>
-<body>
-  <div>
-    <label for="port">Port:</label>
-    <input type="number" id="port" min="1" max="65535">
-    <button onclick="savePort()">Save</button>
-    <br>
-    <br>
-    <span id="ip-address">Getting IP address</span>
-  </div>
 </body>
 </html>

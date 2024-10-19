@@ -1,0 +1,39 @@
+# .github/workflows/build.yml
+name: Build Electron App
+
+on:
+  push:
+    branches:
+      - main  # or your target branch
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest  # Use a Windows environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20'  # Use an appropriate Node.js version
+
+      - name: Install dependencies
+        run: |
+          cd Backend  # Change to the Backend directory
+          npm install  # Install dependencies
+
+      - name: Build the Electron app
+        run: |
+          cd Backend  # Change to the Backend directory
+          npm run make  # Compile the Electron app
+
+      - name: Upload Release
+        if: startsWith(github.ref, 'refs/tags/')  # Only run on tags
+        run: |
+          # Find the .exe file directly from the dist directory
+          $EXE_FILE = Get-ChildItem -Path Backend/dist -Filter *.exe | Select-Object -First 1
+          echo "Uploading $($EXE_FILE.Name) to release"
+          gh release create $GITHUB_REF --title "Release $GITHUB_REF" --notes "Release notes for version $GITHUB_REF" $EXE_FILE.FullName

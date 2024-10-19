@@ -1,5 +1,5 @@
 # .gitlab-ci.yml
-image: node:16  # Use an appropriate Node.js version
+image: node:20  # Use an appropriate Node.js version
 
 stages:
   - build

@@ -15,7 +15,7 @@ build:
     paths:
       - Backend/out/  # Adjust this path if your build output directory is different
   only:
-    - master  # or your target branch, e.g., 'main'
+    - main  # or your target branch, e.g., 'main'
 
 release:
   stage: release

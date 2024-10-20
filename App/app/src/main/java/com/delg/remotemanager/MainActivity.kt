@@ -31,6 +31,20 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+data class SavedIp(
+    val address: String,
+    var customName: String = address, // Default to address if no custom name is set
+    var isPinned: Boolean = false
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,8 +152,10 @@ fun RemoteManagerApp(
 
 @Composable
 fun IpSelectionScreen(onSelectIp: (String) -> Unit, onNewIp: () -> Unit, viewModel: RemoteManagerViewModel) {
-    val usedIps = viewModel.getUsedIps()
+    val savedIps by viewModel.savedIps.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
+    var editingIp by remember { mutableStateOf<String?>(null) }
+    var editedIpValue by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     Box(
@@ -151,34 +167,67 @@ fun IpSelectionScreen(onSelectIp: (String) -> Unit, onNewIp: () -> Unit, viewMod
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxSize()
-                .padding(bottom = 48.dp), // Adjust bottom padding to make room for footer
+                .padding(bottom = 48.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (usedIps.isNotEmpty()) {
-                Text("Select a previously used IP:")
+            if (savedIps.isNotEmpty()) {
+                Text("Saved IPs:")
                 Spacer(modifier = Modifier.height(16.dp))
-                usedIps.forEach { ip ->
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                isLoading = true
-                                val result = viewModel.testConnection(ip)
-                                isLoading = false
-                                if (result == "Connection successful") {
-                                    onSelectIp(ip)
-                                } else {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(viewModel.getApplication(), "Error: $result", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        enabled = !isLoading
+                savedIps.forEach { savedIp ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(ip)
+                        if (editingIp == savedIp.address) {
+                            TextField(
+                                value = editedIpValue,
+                                onValueChange = { editedIpValue = it },
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                viewModel.updateIp(savedIp.address, editedIpValue)
+                                editingIp = null
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Save edit")
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isLoading = true
+                                        val result = viewModel.testConnection(savedIp.address)
+                                        isLoading = false
+                                        if (result == "Connection successful") {
+                                            onSelectIp(savedIp.address)
+                                        } else {
+                                            Toast.makeText(viewModel.getApplication(), "Error: $result", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !isLoading
+                            ) {
+                                Text(savedIp.address)
+                            }
+                            IconButton(onClick = { viewModel.togglePinIp(savedIp.address) }) {
+                                Icon(
+                                    if (savedIp.isPinned) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                    contentDescription = "Toggle pin"
+                                )
+                            }
+                            IconButton(onClick = {
+                                editingIp = savedIp.address
+                                editedIpValue = savedIp.address
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            }
+                            IconButton(onClick = { viewModel.deleteIp(savedIp.address) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
@@ -206,6 +255,8 @@ fun IpSelectionScreen(onSelectIp: (String) -> Unit, onNewIp: () -> Unit, viewMod
                 .padding(16.dp)
         )
     }
+
+
 }
 
 @Composable
@@ -327,27 +378,82 @@ fun ControlPanelScreen(viewModel: RemoteManagerViewModel) {
 class RemoteManagerViewModel(application: Application) : androidx.lifecycle.AndroidViewModel(application) {
     private var _ipPort by mutableStateOf("")
     private val sharedPreferences: SharedPreferences = application.getSharedPreferences("RemoteManager", Context.MODE_PRIVATE)
+    private val _savedIps = MutableStateFlow<List<SavedIp>>(emptyList())
+    val savedIps: StateFlow<List<SavedIp>> = _savedIps
+
+    private val gson = Gson() // Initialize Gson
+
+    init {
+        loadSavedIps()
+    }
 
     fun setIpPort(value: String) {
         _ipPort = value
         if (value != "demo") {
-            saveIp(value)
+            saveIp(value, _ipPort)
         }
     }
 
-    fun getUsedIps(): List<String> {
-        return sharedPreferences.getStringSet("used_ips", emptySet())?.toList() ?: emptyList()
+    private fun loadSavedIps() {
+        val json = sharedPreferences.getString("saved_ips", null) // Load the JSON string
+        val type = object : TypeToken<List<SavedIp>>() {}.type
+        _savedIps.value = if (json != null) {
+            gson.fromJson(json, type) // Deserialize JSON to List<SavedIp>
+        } else {
+            emptyList()
+        }
     }
 
-    private fun saveIp(ip: String) {
-        val usedIps = sharedPreferences.getStringSet("used_ips", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        usedIps.add(ip)
-        sharedPreferences.edit().putStringSet("used_ips", usedIps).apply()
+    private fun saveIp(ip: String, customName: String) {
+        if (ip == "demo" || ip == "demo:demo") {
+            return // Skip saving demo credentials
+        } else {
+            val currentIps = _savedIps.value.toMutableList()
+            if (!currentIps.any { it.address == ip }) {
+                currentIps.add(SavedIp(ip, customName))
+                updateSavedIps(currentIps)
+            }
+        }
+    }
+
+    fun updateCustomName(ip: String, newName: String) {
+        val updatedIps = _savedIps.value.map {
+            if (it.address == ip) it.copy(customName = newName) else it
+        }
+        updateSavedIps(updatedIps)
+    }
+
+    private fun updateSavedIps(ips: List<SavedIp>) {
+        _savedIps.value = ips.sortedByDescending { it.isPinned }
+        val json = gson.toJson(ips) // Serialize List<SavedIp> to JSON
+        sharedPreferences.edit().putString("saved_ips", json).apply() // Save JSON string
+    }
+
+    fun togglePinIp(ip: String) {
+        val updatedIps = _savedIps.value.map {
+            if (it.address == ip) it.copy(isPinned = !it.isPinned) else it
+        }
+        updateSavedIps(updatedIps)
+    }
+
+    fun deleteIp(ip: String) {
+        val updatedIps = _savedIps.value.filter { it.address != ip }
+        updateSavedIps(updatedIps)
+    }
+
+    fun updateIp(oldIp: String, newIp: String) {
+        if (oldIp != newIp) {
+            val updatedIps = _savedIps.value.map {
+                if (it.address == oldIp) it.copy(address = newIp) else it
+            }
+            updateSavedIps(updatedIps)
+        }
     }
 
     suspend fun testConnection(ipPort: String): String {
         return withContext(Dispatchers.IO) {
-            if (ipPort == "demo") {
+            // Check if it's a demo mode with "demo" or "demo:demo"
+            if (ipPort == "demo" || ipPort == "demo:demo") {
                 delay(1000) // Simulate network delay
                 return@withContext "Connection successful"
             }
@@ -364,10 +470,10 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     "Connection successful"
                 } else {
-                    "Error: Response code $responseCode"
+                    "Check the IP and Port matches the Windows client"
                 }
             } catch (e: Exception) {
-                "Error: ${e.message}"
+                "Check the IP and Port matches the Windows client"
             } finally {
                 connection?.disconnect()
             }
@@ -376,7 +482,8 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
 
     suspend fun sendCommand(command: String): String {
         return withContext(Dispatchers.IO) {
-            if (_ipPort == "demo") {
+            // Check if it's a demo mode with "demo" or "demo:demo"
+            if (_ipPort == "demo" || _ipPort == "demo:demo") {
                 delay(1000) // Simulate network delay
                 return@withContext "Command '$command' sent successfully (Demo Mode)"
             }
@@ -393,15 +500,16 @@ class RemoteManagerViewModel(application: Application) : androidx.lifecycle.Andr
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     "Command sent successfully"
                 } else {
-                    "Error: Response code $responseCode"
+                    "Check the IP and Port matches the Windows client"
                 }
             } catch (e: Exception) {
-                "Error: ${e.message}"
+                "Check the IP and Port matches the Windows client"
             } finally {
                 connection?.disconnect()
             }
         }
     }
+
 }
 
 class ThemeViewModelFactory(private val application: Application) : ViewModelProvider.Factory {

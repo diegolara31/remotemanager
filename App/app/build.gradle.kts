@@ -53,6 +53,7 @@ dependencies {
     // Core libraries
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation ("com.google.code.gson:gson:2.10.1")
 
     // Compose libraries
     implementation(libs.androidx.activity.compose)

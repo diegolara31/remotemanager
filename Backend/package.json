@@ -1,7 +1,7 @@
 {
   "name": "remote-manager",
   "productName": "remote-manager",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "author": "delg [me@delg.cc]",
   "description": "Remote Manager Application",
   "main": "index.js",
